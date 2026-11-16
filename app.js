@@ -53,7 +53,7 @@ async function claimDailyReward(){
    awarded=20+(day-1)*40;
    tx.update(ref,{coins:(Number(data.coins)||0)+awarded,dailyStreak:day,lastDailyClaimAt:serverTimestamp()});
   });
-  currentProfile={...currentProfile,coins:(Number(currentProfile?.coins)||0)+awarded,dailyStreak:day};
+  currentProfile={...currentProfile,coins:(Number(currentProfile?.coins)||0)+awarded,dailyStreak:day,lastDailyClaimAt:{toMillis:()=>Date.now()}};
   toast("+"+awarded+" BlockCoins получено!");
   renderRewards("Награда получена!");
  }catch(e){renderRewards(e.message||"Не удалось получить награду");}
