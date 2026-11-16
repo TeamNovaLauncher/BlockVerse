@@ -1,0 +1,9 @@
+export const firebaseConfig = {
+  apiKey: "AIzaSyB04PhZa35vMUYCGSQ9AqBkEe6Uu0dNl5Q",
+  authDomain: "blockverse-4a366.firebaseapp.com",
+  projectId: "blockverse-4a366",
+  storageBucket: "blockverse-4a366.firebasestorage.app",
+  messagingSenderId: "299005535616",
+  appId: "1:299005535616:web:0329ca5a4d3413340e8d65",
+  measurementId: "G-1RJ7F79LW9"
+};
