@@ -1,114 +1,48 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import {
-  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  onAuthStateChanged, signOut
-} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import {
-  getFirestore, doc, runTransaction, getDoc, serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, doc, runTransaction, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-const form = document.querySelector("#authForm");
-const emailInput = document.querySelector("#email");
-const passwordInput = document.querySelector("#password");
-const submitBtn = document.querySelector("#submitBtn");
-const loginTab = document.querySelector("#loginTab");
-const registerTab = document.querySelector("#registerTab");
-const message = document.querySelector("#message");
-const authPanel = document.querySelector("#auth");
-const profile = document.querySelector("#profile");
-const userEmail = document.querySelector("#userEmail");
-const userRole = document.querySelector("#userRole");
-let mode = "login";
-
-function say(text) { message.textContent = text; }
-function setMode(next) {
-  mode = next;
-  loginTab.classList.toggle("active", mode === "login");
-  registerTab.classList.toggle("active", mode === "register");
-  submitBtn.textContent = mode === "login" ? "Войти" : "Создать аккаунт";
-  passwordInput.autocomplete = mode === "login" ? "current-password" : "new-password";
-  say("");
+const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
+const $=s=>document.querySelector(s);
+let mode="login",currentUser=null,currentProfile=null,activeFilter="Все",avatar="🧑";
+const games=[
+ {id:"obby",name:"Mega Easy Obby",desc:"Преодолей полосу препятствий!",players:"12.4K",emoji:"🏃",skin:"t1",tag:"Обби"},
+ {id:"brook",name:"Brookhaven RP",desc:"Твой город — твои истории",players:"28.1K",emoji:"🏡",skin:"t2",tag:"Ролевые"},
+ {id:"adopt",name:"Adopt Me!",desc:"Заботься о питомцах и исследуй мир",players:"19.7K",emoji:"🐶",skin:"t3",tag:"Ролевые"},
+ {id:"tower",name:"Tower of Fun",desc:"Доберись до самой вершины",players:"8.2K",emoji:"🗼",skin:"t4",tag:"Обби"},
+ {id:"fashion",name:"Fashion Famous",desc:"Создай свой неповторимый образ",players:"6.8K",emoji:"👗",skin:"t5",tag:"Симуляторы"},
+ {id:"tycoon",name:"Theme Park Tycoon",desc:"Построй огромный парк развлечений",players:"4.5K",emoji:"🎡",skin:"t6",tag:"Симуляторы"},
+ {id:"bed",name:"BedWars",desc:"Командная битва за базу",players:"15.3K",emoji:"🛏️",skin:"t7",tag:"Экшен"},
+ {id:"pet",name:"Pet Simulator",desc:"Собирай питомцев и открывай зоны",players:"9.1K",emoji:"🥚",skin:"t8",tag:"Симуляторы"}
+];
+const main=$("#main");
+function say(t){$("#message").textContent=t}
+function setMode(m){mode=m;$("#loginTab").classList.toggle("active",m==="login");$("#registerTab").classList.toggle("active",m==="register");$("#submitBtn").textContent=m==="login"?"Войти":"Создать аккаунт";$("#password").autocomplete=m==="login"?"current-password":"new-password";say("")}
+$("#loginTab").addEventListener("click",()=>setMode("login"));$("#registerTab").addEventListener("click",()=>setMode("register"));
+async function createUserProfile(user){
+ const ownerRef=doc(db,"system","owner"),userRef=doc(db,"users",user.uid);
+ await runTransaction(db,async tx=>{const owner=await tx.get(ownerRef),role=owner.exists()?"player":"creator";if(!owner.exists())tx.set(ownerRef,{uid:user.uid,email:user.email||"",createdAt:serverTimestamp()});tx.set(userRef,{uid:user.uid,email:user.email||"",role,username:(user.email||"player").split("@")[0],createdAt:serverTimestamp()})});
 }
-loginTab.addEventListener("click", () => setMode("login"));
-registerTab.addEventListener("click", () => setMode("register"));
-
-async function createUserProfile(user) {
-  const ownerRef = doc(db, "system", "owner");
-  const userRef = doc(db, "users", user.uid);
-
-  await runTransaction(db, async (tx) => {
-    const ownerSnap = await tx.get(ownerRef);
-    const role = ownerSnap.exists() ? "player" : "creator";
-
-    if (!ownerSnap.exists()) {
-      tx.set(ownerRef, {
-        uid: user.uid,
-        email: user.email || "",
-        createdAt: serverTimestamp()
-      });
-    }
-
-    tx.set(userRef, {
-      uid: user.uid,
-      email: user.email || "",
-      role,
-      username: (user.email || "player").split("@")[0],
-      createdAt: serverTimestamp()
-    });
-  });
+$("#authForm").addEventListener("submit",async e=>{e.preventDefault();const btn=$("#submitBtn");btn.disabled=true;say("Подождите…");try{if(mode==="register"){const c=await createUserWithEmailAndPassword(auth,$("#email").value.trim(),$("#password").value);await createUserProfile(c.user)}else await signInWithEmailAndPassword(auth,$("#email").value.trim(),$("#password").value)}catch(err){const msgs={"auth/email-already-in-use":"Этот email уже зарегистрирован.","auth/invalid-email":"Проверьте адрес электронной почты.","auth/weak-password":"Пароль должен содержать минимум 6 символов.","auth/invalid-credential":"Неверная почта или пароль.","auth/unauthorized-domain":"Добавьте teamnovalauncher.github.io в Authorized domains Firebase.","permission-denied":"Firebase отклонил запись. Проверьте правила Firestore."};say(msgs[err.code]||err.message||"Не удалось выполнить действие.")}finally{btn.disabled=false}});
+function toast(t){const el=$("#toast");el.textContent=t;el.classList.remove("hide");setTimeout(()=>el.classList.add("hide"),2400)}
+function gameCard(g){return `<article class="game" data-game="${g.id}"><div class="thumb ${g.skin}"><span class="emoji">${g.emoji}</span></div><div class="gamename">${g.name}</div><div class="meta"><span class="online">●</span> ${g.players} играют</div></article>`}
+function renderDiscover(){
+ main.innerHTML=`<div class="welcome"><div><h1>Главная</h1><p>Открывай новые миры и приключения</p></div><button class="pill primary" id="heroCreate">＋ Создать игру</button></div>
+ <section class="hero"><div><h2>Твоя следующая игра начинается здесь</h2><p>Исследуй миллионы возможностей в BlockVerse</p><button class="pill" style="background:white;color:#253e91" id="exploreBtn">Исследовать игры</button></div><div class="hero-art">🧱🎮</div></section>
+ <div class="sectionhead"><h2>Популярные игры</h2><a id="seeAll">ПОКАЗАТЬ ВСЕ　›</a></div>
+ <div class="chips" id="chips">${["Все","Обби","Ролевые","Симуляторы","Экшен"].map(x=>`<button class="chip ${activeFilter===x?"active":""}" data-filter="${x}">${x}</button>`).join("")}</div>
+ <div class="sectionhead"><h2 id="gameHeading">Рекомендуем</h2><span class="meta">Подборка BlockVerse</span></div><div class="games" id="gameGrid"></div>`;
+ drawGames();$("#heroCreate").onclick=()=>navigate("create");$("#exploreBtn").onclick=()=>$("#gameGrid").scrollIntoView({behavior:"smooth"});$("#seeAll").onclick=()=>{activeFilter="Все";drawGames()};
+ $("#chips").addEventListener("click",e=>{const b=e.target.closest("[data-filter]");if(!b)return;activeFilter=b.dataset.filter;$("#chips").querySelectorAll(".chip").forEach(x=>x.classList.toggle("active",x===b));drawGames()});
+ $("#gameGrid").addEventListener("click",e=>{const c=e.target.closest("[data-game]");if(c)renderGame(games.find(g=>g.id===c.dataset.game))});
 }
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const email = emailInput.value.trim();
-  const password = passwordInput.value;
-  submitBtn.disabled = true;
-  say("Подождите…");
-  try {
-    if (mode === "register") {
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
-      await createUserProfile(credential.user);
-      say("Аккаунт создан!");
-    } else {
-      await signInWithEmailAndPassword(auth, email, password);
-      say("Вход выполнен!");
-    }
-  } catch (error) {
-    const messages = {
-      "auth/email-already-in-use": "Этот email уже зарегистрирован.",
-      "auth/invalid-email": "Проверьте адрес электронной почты.",
-      "auth/weak-password": "Пароль должен содержать минимум 6 символов.",
-      "auth/invalid-credential": "Неверная почта или пароль.",
-      "permission-denied": "Firebase отклонил запись. Проверьте правила Firestore."
-    };
-    say(messages[error.code] || error.message || "Не удалось выполнить действие.");
-  } finally {
-    submitBtn.disabled = false;
-  }
-});
-
-document.querySelector("#logoutBtn").addEventListener("click", () => signOut(auth));
-
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    authPanel.style.display = "block";
-    profile.style.display = "none";
-    return;
-  }
-  try {
-    const snap = await getDoc(doc(db, "users", user.uid));
-    authPanel.style.display = "none";
-    profile.style.display = "block";
-    userEmail.textContent = user.email || "Пользователь";
-    userRole.textContent = snap.exists()
-      ? (snap.data().role === "creator" ? "Роль: Creator" : "Роль: Player")
-      : "Профиль не найден. Выйдите и войдите снова.";
-  } catch (error) {
-    say("Не удалось загрузить профиль: " + error.message);
-  }
-});
+function drawGames(){const q=($("#searchInput")?.value||"").toLowerCase();const list=games.filter(g=>(activeFilter==="Все"||g.tag===activeFilter)&&(`${g.name} ${g.desc}`.toLowerCase().includes(q)));$("#gameGrid").innerHTML=list.length?list.map(gameCard).join(""):'<div class="empty">Ничего не найдено. Попробуй другой запрос.</div>';$("#gameHeading").textContent=activeFilter==="Все"?"Рекомендуем":activeFilter}
+function renderGame(g){main.innerHTML=`<button class="pill ghost" id="back">← Назад к играм</button><div class="sectionhead"><h2>${g.name}</h2></div><div class="gameview"><div style="font-size:90px;text-align:center;padding:15px">${g.emoji}</div><h2>${g.name}</h2><p style="color:#c5c8d5">${g.desc}</p><p style="color:#aab1c7">Игроков сейчас: ${g.players}</p><button class="pill primary" id="playBtn">▶ Играть в демо</button></div><p class="muted">Это демонстрационная карточка каталога. Полноценные пользовательские онлайн-игры и мультиплеер ещё разрабатываются.</p>`;$("#back").onclick=renderDiscover;$("#playBtn").onclick=()=>{if(g.id==="obby")startObby();else toast("Демо этой игры пока готовится")}}
+function startObby(){main.innerHTML=`<button class="pill ghost" id="back">← В каталог</button><div class="sectionhead"><h2>Mega Easy Obby — демо</h2></div><div class="gameview" style="text-align:center"><canvas id="obbyCanvas" width="720" height="390" style="width:100%;max-width:720px;background:linear-gradient(#9ad9ff 0 65%,#7ecb79 65%);border-radius:10px;touch-action:none"></canvas><p>Управление: ← → или A / D. На телефоне используй кнопки.</p><div><button class="pill ghost" id="left">◀</button> <button class="pill ghost" id="jump">ПРЫЖОК</button> <button class="pill ghost" id="right">▶</button></div><p id="gameStatus">Доберись до зелёного финиша!</p></div>`;$("#back").onclick=renderDiscover;const c=$("#obbyCanvas"),ctx=c.getContext("2d");let x=55,y=300,vy=0,ground=true,keys={};const platforms=[{x:0,y:340,w:720,h:50},{x:170,y:285,w:100,h:14},{x:330,y:230,w:100,h:14},{x:490,y:175,w:100,h:14},{x:635,y:120,w:70,h:14}];function draw(){ctx.clearRect(0,0,720,390);ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(100,65,25,0,7);ctx.arc(130,60,18,0,7);ctx.fill();platforms.forEach((p,i)=>{ctx.fillStyle=i===0?"#4b9e52":"#9a704c";ctx.fillRect(p.x,p.y,p.w,p.h);ctx.fillStyle="#65c96d";ctx.fillRect(p.x,p.y,p.w,5)});ctx.fillStyle="#ffdc35";ctx.fillRect(665,75,8,45);ctx.fillStyle="#28c76f";ctx.fillRect(673,75,28,18);ctx.fillStyle="#2755d9";ctx.fillRect(x,y,25,34);ctx.fillStyle="#ffd4a6";ctx.fillRect(x+3,y-15,19,17);ctx.fillStyle="#202127";ctx.fillRect(x+7,y-9,3,3);ctx.fillRect(x+16,y-9,3,3);if(x>650&&y<115){$("#gameStatus").textContent="🏆 Победа! Ты прошёл демо-обби!";return}requestAnimationFrame(draw)}function step(){if(keys.left)x-=3.4;if(keys.right)x+=3.4;x=Math.max(0,Math.min(690,x));vy+=.55;y+=vy;ground=false;for(const p of platforms){if(x+25>p.x&&x<p.x+p.w&&y+34>=p.y&&y+34<=p.y+18&&vy>=0){y=p.y-34;vy=0;ground=true}}if(y>420){x=55;y=300;vy=0}requestAnimationFrame(step)}function press(k,on){keys[k]=on}document.addEventListener("keydown",keyDown);document.addEventListener("keyup",keyUp);function keyDown(e){if(["ArrowLeft","a","A"].includes(e.key))press("left",true);if(["ArrowRight","d","D"].includes(e.key))press("right",true);if([" ","ArrowUp"].includes(e.key)&&ground){vy=-10;ground=false}}function keyUp(e){if(["ArrowLeft","a","A"].includes(e.key))press("left",false);if(["ArrowRight","d","D"].includes(e.key))press("right",false)}$("#left").onpointerdown=()=>press("left",true);$("#left").onpointerup=()=>press("left",false);$("#right").onpointerdown=()=>press("right",true);$("#right").onpointerup=()=>press("right",false);$("#jump").onclick=()=>{if(ground){vy=-10;ground=false}};draw();step()}
+function renderCreate(){main.innerHTML=`<div class="welcome"><div><h1>Создать</h1><p>Начни строить свой собственный мир</p></div></div><div class="panel"><h2>Новый мир</h2><p class="muted">Выбери шаблон, придумай название и создай черновик.</p><label>Название мира<input id="worldName" class="field" maxlength="40" placeholder="Мой первый мир"></label><label>Шаблон<select id="worldType" class="field"><option>Пустой мир</option><option>Полоса препятствий (Obby)</option><option>Город для ролевой игры</option></select></label><button class="pill primary" id="makeWorld">＋ Создать черновик</button><p class="muted" id="createMsg">Пока черновик сохраняется только в этой вкладке. Онлайн-публикация появится после разработки редактора и серверной части.</p></div>`;$("#makeWorld").onclick=()=>{const n=$("#worldName").value.trim();if(!n){$("#createMsg").textContent="Сначала введи название мира.";return}$("#createMsg").textContent=`Черновик «${n}» создан в этой сессии. Редактор 3D и публикация ещё разрабатываются.`;toast("Черновик создан")}}
+function renderAvatar(){main.innerHTML=`<div class="welcome"><div><h1>Аватар</h1><p>Выбери своего персонажа</p></div></div><div class="panel"><div class="profileline"><div class="bigavatar" id="avatarPreview">${avatar}</div><div><b>Мой персонаж</b><p class="muted">Настрой внешний вид</p></div></div><h3>Выбери образ</h3><div style="display:flex;gap:10px;flex-wrap:wrap">${["🧑","👩","🤖","🐸","🦊","🐱","🧙","👨‍🚀"].map(a=>`<button class="pill ghost avatarChoice" data-avatar="${a}" style="font-size:25px">${a}</button>`).join("")}</div><p class="muted">Выбор пока локальный и не синхронизируется между устройствами.</p></div>`;document.querySelectorAll(".avatarChoice").forEach(b=>b.onclick=()=>{avatar=b.dataset.avatar;$("#avatarPreview").textContent=avatar;$("#topAvatar").textContent=avatar})}
+function renderProfile(){const name=currentProfile?.username||currentUser.email.split("@")[0];main.innerHTML=`<div class="welcome"><div><h1>Профиль</h1><p>Твой аккаунт BlockVerse</p></div></div><div class="panel"><div class="profileline"><div class="bigavatar">${avatar}</div><div><h2 style="margin:0 0 5px">${name}</h2><p class="muted">${currentUser.email}</p></div></div><hr style="border:0;border-top:1px solid #eee;margin:20px 0"><p><b>Роль:</b> ${currentProfile?.role==="creator"?"Creator":"Player"}</p><p><b>Платформа:</b> BlockVerse</p><button class="pill ghost" id="profileLogout">Выйти из аккаунта</button></div>`;$("#profileLogout").onclick=()=>signOut(auth)}
+function navigate(page){document.querySelectorAll(".nav[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));if(page==="discover")renderDiscover();if(page==="create")renderCreate();if(page==="avatar")renderAvatar();if(page==="profile")renderProfile()}
+document.querySelectorAll(".nav[data-page]").forEach(b=>b.onclick=()=>navigate(b.dataset.page));$("#createTop").onclick=()=>navigate("create");$("#searchInput").addEventListener("input",()=>{if($("#gameGrid"))drawGames()});$("#logoutBtn").onclick=()=>signOut(auth);
+onAuthStateChanged(auth,async user=>{currentUser=user;if(!user){$("#authScreen").classList.remove("hide");$("#appScreen").classList.add("hide");return}try{const snap=await getDoc(doc(db,"users",user.uid));currentProfile=snap.exists()?snap.data():{username:user.email.split("@")[0],role:"player"};$("#authScreen").classList.add("hide");$("#appScreen").classList.remove("hide");$("#topAvatar").textContent=avatar;navigate("discover")}catch(err){toast("Не удалось загрузить профиль: "+err.message)}});
